@@ -76,6 +76,50 @@ def test_macos_chrome_extractor_reads_from_temporary_cookie_db_copy(tmp_path):
     assert seen["domain_name"] == ".google.com"
 
 
+def test_macos_chrome_extractor_supports_profile_root_cookie_db(tmp_path):
+    profile_path = tmp_path / "Profile 1"
+    cookie_db = profile_path / "Cookies"
+    profile_path.mkdir()
+    cookie_db.write_text("cookie-db")
+
+    def fake_cookie_loader(cookie_file, domain_name):
+        assert cookie_file != cookie_db
+        jar = CookieJar()
+        jar.set_cookie(_cookie("SID", "sid-value", ".google.com"))
+        return jar
+
+    extractor = MacOSChromeCredentialExtractor(
+        BrowserProfile(
+            browser="chrome",
+            profile="Profile 1",
+            profile_path=str(profile_path),
+        ),
+        cookie_loader=fake_cookie_loader,
+    )
+
+    assert extractor.extract() == BrowserCookieMaterial(cookie_header="SID=sid-value")
+
+
+def test_macos_chrome_factory_auto_detects_available_profile(tmp_path):
+    chrome_root = tmp_path / "Chrome"
+    profile_path = chrome_root / "Profile 1"
+    profile_path.mkdir(parents=True)
+    (profile_path / "Cookies").write_text("cookie-db")
+
+    extractor = create_browser_credential_extractor(
+        browser="chrome",
+        profile="auto",
+        chrome_root=chrome_root,
+        platform="darwin",
+    )
+
+    assert extractor.profile == BrowserProfile(
+        browser="chrome",
+        profile="Profile 1",
+        profile_path=str(profile_path),
+    )
+
+
 def test_macos_chrome_extractor_reports_missing_cookie_db(tmp_path):
     profile_path = tmp_path / "Default"
     profile_path.mkdir()

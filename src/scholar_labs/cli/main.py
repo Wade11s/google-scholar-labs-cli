@@ -63,7 +63,7 @@ def search(
                 try:
                     _run_browser_login(
                         browser="chrome",
-                        profile="Default",
+                        profile="auto",
                         hl=os.environ.get("SCHOLAR_HL", "en"),
                     )
                 except (BrowserAuthError, LoginError) as login_error:
@@ -97,7 +97,7 @@ def search(
 @app.command()
 def login(
     browser: str = typer.Option("chrome", "--browser", help="Browser to read credentials from"),
-    profile: str = typer.Option("Default", "--profile", help="Browser profile to read"),
+    profile: str = typer.Option("auto", "--profile", help="Browser profile to read"),
 ):
     """Configure authentication for Google Scholar Labs."""
     hl = os.environ.get("SCHOLAR_HL", "en")

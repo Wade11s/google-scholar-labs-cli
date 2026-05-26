@@ -72,23 +72,23 @@ class MacOSChromeCredentialExtractor(BrowserCredentialExtractor):
         return BrowserCookieMaterial(cookie_header=cookie_header)
 
     def _cookie_db_path(self) -> Path:
+        cookie_db = _find_cookie_db(self._profile_path())
+        if cookie_db is not None:
+            return cookie_db
         return self._profile_path() / "Network" / "Cookies"
 
     def _profile_path(self) -> Path:
         if self.profile.profile_path:
             return Path(self.profile.profile_path)
-        if self.profile.browser == "chromium":
-            base = Path.home() / "Library" / "Application Support" / "Chromium"
-        else:
-            base = Path.home() / "Library" / "Application Support" / "Google" / "Chrome"
-        return base / self.profile.profile
+        return _default_chrome_root(self.profile.browser) / self.profile.profile
 
 
 def create_browser_credential_extractor(
     browser: str = "chrome",
-    profile: str = "Default",
+    profile: str = "auto",
     profile_path: str | None = None,
     platform: str | None = None,
+    chrome_root: Path | None = None,
 ) -> BrowserCredentialExtractor:
     platform = platform or sys.platform
     normalized_browser = browser.lower()
@@ -102,12 +102,15 @@ def create_browser_credential_extractor(
             "Browser Credential Extraction currently supports macOS Chrome/Chromium only. "
             "Use 'sls auth manual' for this browser."
         )
+    resolved_profile = BrowserProfile(
+        browser=normalized_browser,
+        profile=profile,
+        profile_path=profile_path,
+    )
+    if profile_path is None and profile == "auto":
+        resolved_profile = _detect_macos_chrome_profile(normalized_browser, chrome_root)
     return MacOSChromeCredentialExtractor(
-        BrowserProfile(
-            browser=normalized_browser,
-            profile=profile,
-            profile_path=profile_path,
-        )
+        resolved_profile
     )
 
 
@@ -130,3 +133,54 @@ def _build_cookie_header(cookie_jar) -> str:
             continue
         parts.append(f"{cookie.name}={cookie.value}")
     return "; ".join(parts)
+
+
+def _detect_macos_chrome_profile(browser: str, chrome_root: Path | None = None) -> BrowserProfile:
+    root = chrome_root or _default_chrome_root(browser)
+    candidates = []
+    for name in ("Default", "Profile 1"):
+        candidate = root / name
+        if candidate.exists():
+            candidates.append(candidate)
+    if root.exists():
+        candidates.extend(
+            sorted(
+                path for path in root.iterdir()
+                if path.is_dir() and path.name.startswith("Profile ")
+            )
+        )
+
+    seen = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if _find_cookie_db(candidate) is not None:
+            return BrowserProfile(
+                browser=browser,
+                profile=candidate.name,
+                profile_path=str(candidate),
+            )
+
+    raise BrowserAuthError(
+        f"No Chrome profile with a cookie database found under {root}. "
+        "Use --profile to select a profile or 'sls auth manual'."
+    )
+
+
+def _default_chrome_root(browser: str) -> Path:
+    if browser == "chromium":
+        return Path.home() / "Library" / "Application Support" / "Chromium"
+    return Path.home() / "Library" / "Application Support" / "Google" / "Chrome"
+
+
+def _find_cookie_db(profile_path: Path) -> Path | None:
+    for relative_path in (
+        Path("Network") / "Cookies",
+        Path("Cookies"),
+        Path("Default") / "Cookies",
+    ):
+        candidate = profile_path / relative_path
+        if candidate.exists():
+            return candidate
+    return None
