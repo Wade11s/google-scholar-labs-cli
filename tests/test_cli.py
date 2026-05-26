@@ -3,6 +3,7 @@ import json
 from typer.testing import CliRunner
 
 from scholar_labs.cli import main as cli_main
+from scholar_labs.core.browser_page import BrowserPageXsrfDiscovery
 from scholar_labs.core.browser_auth import BrowserCookieMaterial, BrowserProfile
 from scholar_labs.core.login import LoginRateLimitError
 
@@ -198,6 +199,7 @@ def test_login_writes_chrome_profile_source_record(tmp_path, monkeypatch, httpx_
 def test_login_recovery_opens_browser_and_retries(tmp_path, monkeypatch, httpx_mock):
     opened = []
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(BrowserPageXsrfDiscovery, "discover", lambda self, hl="en": None)
     monkeypatch.setattr(cli_main, "_is_interactive", lambda json_output: True)
     monkeypatch.setattr(cli_main.webbrowser, "open", lambda url: opened.append(url))
     monkeypatch.setattr(
@@ -230,6 +232,7 @@ def test_login_recovery_opens_browser_and_retries(tmp_path, monkeypatch, httpx_m
 def test_login_does_not_recover_when_noninteractive(tmp_path, monkeypatch, httpx_mock):
     opened = []
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(BrowserPageXsrfDiscovery, "discover", lambda self, hl="en": None)
     monkeypatch.setattr(cli_main, "_is_interactive", lambda json_output: False)
     monkeypatch.setattr(cli_main.webbrowser, "open", lambda url: opened.append(url))
     monkeypatch.setattr(

@@ -1,13 +1,14 @@
 """CLI Login orchestration."""
 
 from datetime import UTC, datetime
-import re
 from urllib.parse import urlencode
 
 import httpx
 
 from scholar_labs.core.auth import AuthConfigStore, ChromeProfileAuthConfig
+from scholar_labs.core.browser_page import BrowserPageXsrfDiscovery
 from scholar_labs.core.browser_auth import BrowserCredentialExtractor
+from scholar_labs.core.xsrf import extract_xsrf_token
 
 
 class LoginError(Exception):
@@ -21,6 +22,9 @@ class LoginRateLimitError(LoginError):
 class XsrfDiscovery:
     SEARCH_URL = "https://scholar.google.com/scholar_labs/search"
 
+    def __init__(self, browser_page_discovery: BrowserPageXsrfDiscovery | None = None):
+        self._browser_page_discovery = browser_page_discovery or BrowserPageXsrfDiscovery()
+
     async def discover(self, cookie_header: str, hl: str = "en") -> str:
         params = urlencode({"hl": hl})
         url = f"{self.SEARCH_URL}?{params}"
@@ -28,13 +32,22 @@ class XsrfDiscovery:
         async with httpx.AsyncClient(http2=True, timeout=httpx.Timeout(30.0)) as client:
             response = await client.get(url, headers=headers)
         if response.status_code == 429:
+            token = self._browser_page_discovery.discover(hl=hl)
+            if token:
+                return token
             raise LoginRateLimitError(_rate_limit_message(response))
+        if response.status_code == 403:
+            token = self._browser_page_discovery.discover(hl=hl)
+            if token:
+                return token
         if response.status_code >= 400:
             raise LoginError(f"Scholar Labs page returned HTTP {response.status_code}.")
-        match = re.search(r"[?&]xsrf=([^\"'&<>\s]+)", response.text)
-        if not match:
+        token = extract_xsrf_token(response.text)
+        if not token:
+            token = self._browser_page_discovery.discover(hl=hl)
+        if not token:
             raise LoginError("Could not discover XSRF token from Scholar Labs page.")
-        return match.group(1)
+        return token
 
 
 class LoginService:

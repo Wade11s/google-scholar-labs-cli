@@ -3,11 +3,13 @@ from dataclasses import asdict, dataclass
 import json
 import os
 from pathlib import Path
-import re
 from typing import Literal
 from urllib.parse import urlencode
 
 import httpx
+
+from scholar_labs.core.browser_page import BrowserPageXsrfDiscovery
+from scholar_labs.core.xsrf import extract_xsrf_token
 
 
 class ScholarLabsError(Exception):
@@ -192,9 +194,15 @@ def _discover_xsrf_sync(cookie_header: str) -> str:
     url = "https://scholar.google.com/scholar_labs/search?" + urlencode({"hl": hl})
     with httpx.Client(timeout=httpx.Timeout(30.0)) as client:
         response = client.get(url, headers={"Cookie": cookie_header})
+    if response.status_code in {403, 429}:
+        token = BrowserPageXsrfDiscovery().discover(hl=hl)
+        if token:
+            return token
     if response.status_code >= 400:
         raise AuthError(f"Scholar Labs page returned HTTP {response.status_code}.")
-    match = re.search(r"[?&]xsrf=([^\"'&<>\s]+)", response.text)
-    if not match:
+    token = extract_xsrf_token(response.text)
+    if not token:
+        token = BrowserPageXsrfDiscovery().discover(hl=hl)
+    if not token:
         raise AuthError("Could not discover XSRF token from Scholar Labs page.")
-    return match.group(1)
+    return token

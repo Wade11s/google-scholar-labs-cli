@@ -24,6 +24,50 @@ async def test_xsrf_discovery_extracts_token_from_scholar_labs_page(httpx_mock):
 
 
 @pytest.mark.asyncio
+async def test_xsrf_discovery_extracts_token_from_escaped_scholar_labs_page(httpx_mock):
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        text=(
+            r'<script>AF_initDataCallback({"data":'
+            r'"/scholar_labs/search/session_data?hl\x3den\x26xsrf\x3descaped-xsrf"});'
+            r"</script>"
+        ),
+    )
+
+    token = await XsrfDiscovery().discover("SID=sid-value", hl="en")
+
+    assert token == "escaped-xsrf"
+
+
+@pytest.mark.asyncio
+async def test_xsrf_discovery_falls_back_to_browser_page_on_forbidden(httpx_mock):
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        status_code=403,
+    )
+
+    token = await XsrfDiscovery(
+        browser_page_discovery=FakeBrowserPageDiscovery("browser-xsrf")
+    ).discover("SID=sid-value", hl="en")
+
+    assert token == "browser-xsrf"
+
+
+@pytest.mark.asyncio
+async def test_xsrf_discovery_falls_back_to_browser_page_on_rate_limit(httpx_mock):
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        status_code=429,
+    )
+
+    token = await XsrfDiscovery(
+        browser_page_discovery=FakeBrowserPageDiscovery("browser-xsrf")
+    ).discover("SID=sid-value", hl="en")
+
+    assert token == "browser-xsrf"
+
+
+@pytest.mark.asyncio
 async def test_xsrf_discovery_reports_missing_token(httpx_mock):
     httpx_mock.add_response(
         url="https://scholar.google.com/scholar_labs/search?hl=en",
@@ -31,7 +75,9 @@ async def test_xsrf_discovery_reports_missing_token(httpx_mock):
     )
 
     with pytest.raises(LoginError, match="XSRF"):
-        await XsrfDiscovery().discover("SID=sid-value", hl="en")
+        await XsrfDiscovery(
+            browser_page_discovery=FakeBrowserPageDiscovery(None)
+        ).discover("SID=sid-value", hl="en")
 
 
 @pytest.mark.asyncio
@@ -43,7 +89,9 @@ async def test_xsrf_discovery_reports_rate_limit_without_browser_recovery(httpx_
     )
 
     with pytest.raises(LoginRateLimitError, match="retry after 60 seconds"):
-        await XsrfDiscovery().discover("SID=sid-value", hl="en")
+        await XsrfDiscovery(
+            browser_page_discovery=FakeBrowserPageDiscovery(None)
+        ).discover("SID=sid-value", hl="en")
 
 
 @pytest.mark.asyncio
@@ -112,3 +160,11 @@ class FakeExtractor:
 
     def extract(self):
         return BrowserCookieMaterial(cookie_header="SID=sid-value")
+
+
+class FakeBrowserPageDiscovery:
+    def __init__(self, token):
+        self._token = token
+
+    def discover(self, hl="en"):
+        return self._token
