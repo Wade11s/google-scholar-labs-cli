@@ -37,6 +37,29 @@ class BrowserCredentialExtractor(ABC):
     def extract(self) -> BrowserCookieMaterial: ...
 
 
+SCHOLAR_LABS_COOKIE_ORDER = (
+    "HSID",
+    "SSID",
+    "APISID",
+    "SAPISID",
+    "__Secure-1PAPISID",
+    "__Secure-3PAPISID",
+    "__Secure-BUCKET",
+    "SEARCH_SAMESITE",
+    "SID",
+    "__Secure-1PSID",
+    "__Secure-3PSID",
+    "__Secure-1PSIDTS",
+    "__Secure-3PSIDTS",
+    "AEC",
+    "GSP",
+    "NID",
+    "SIDCC",
+    "__Secure-1PSIDCC",
+    "__Secure-3PSIDCC",
+)
+
+
 class MacOSChromeCredentialExtractor(BrowserCredentialExtractor):
     def __init__(
         self,
@@ -126,11 +149,18 @@ def _load_chrome_cookies(cookie_file: Path, domain_name: str):
 
 
 def _build_cookie_header(cookie_jar) -> str:
-    parts = []
+    values_by_name = {}
     for cookie in cookie_jar:
         if not _cookie_matches_host(cookie, "scholar.google.com"):
             continue
-        parts.append(f"{cookie.name}={cookie.value}")
+        if cookie.name not in SCHOLAR_LABS_COOKIE_ORDER:
+            continue
+        values_by_name.setdefault(cookie.name, cookie.value)
+    parts = [
+        f"{name}={values_by_name[name]}"
+        for name in SCHOLAR_LABS_COOKIE_ORDER
+        if name in values_by_name
+    ]
     return "; ".join(parts)
 
 

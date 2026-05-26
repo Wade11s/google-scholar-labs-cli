@@ -56,6 +56,10 @@ def test_macos_chrome_extractor_reads_from_temporary_cookie_db_copy(tmp_path):
         assert cookie_file.read_text() == "cookie-db"
         jar = CookieJar()
         jar.set_cookie(_cookie("SID", "sid-value", ".google.com"))
+        jar.set_cookie(_cookie("HSID", "hsid-value", ".google.com"))
+        jar.set_cookie(_cookie("__Secure-3PSIDCC", "secure-cc-value", ".google.com"))
+        jar.set_cookie(_cookie("SNID", "snid-value", ".google.com"))
+        jar.set_cookie(_cookie("LSID", "lsid-value", ".google.com"))
         jar.set_cookie(_cookie("SCHOLAR", "scholar-value", "scholar.google.com"))
         jar.set_cookie(_cookie("ACCOUNT", "account-value", "accounts.google.com"))
         jar.set_cookie(_cookie("HK", "hk-value", ".google.com.hk"))
@@ -73,7 +77,7 @@ def test_macos_chrome_extractor_reads_from_temporary_cookie_db_copy(tmp_path):
     material = extractor.extract()
 
     assert material == BrowserCookieMaterial(
-        cookie_header="SID=sid-value; SCHOLAR=scholar-value"
+        cookie_header="HSID=hsid-value; SID=sid-value; __Secure-3PSIDCC=secure-cc-value"
     )
     assert seen["domain_name"] == ".google.com"
 
