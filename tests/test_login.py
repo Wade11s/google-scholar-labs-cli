@@ -17,6 +17,10 @@ async def test_xsrf_discovery_extracts_token_from_scholar_labs_page(httpx_mock):
     token = await XsrfDiscovery().discover("SID=sid-value", hl="en")
 
     assert token == "test-xsrf"
+    request = httpx_mock.get_requests()[0]
+    assert request.headers["User-Agent"].startswith("Mozilla/5.0")
+    assert request.headers["Referer"] == "https://scholar.google.com/scholar_labs/search"
+    assert request.headers["Accept-Language"] == "en-US,en;q=0.9"
 
 
 @pytest.mark.asyncio
@@ -60,6 +64,11 @@ async def test_login_service_validates_and_writes_credential_source_record(tmp_p
 
     config = await service.login()
 
+    post_request = httpx_mock.get_requests()[1]
+    assert post_request.headers["User-Agent"].startswith("Mozilla/5.0")
+    assert post_request.headers["Referer"] == "https://scholar.google.com/scholar_labs/search"
+    assert post_request.headers["Origin"] == "https://scholar.google.com"
+    assert post_request.headers["Accept-Language"] == "en-US,en;q=0.9"
     assert config == ChromeProfileAuthConfig(
         browser="chrome",
         profile="Default",

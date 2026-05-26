@@ -24,8 +24,8 @@ class XsrfDiscovery:
     async def discover(self, cookie_header: str, hl: str = "en") -> str:
         params = urlencode({"hl": hl})
         url = f"{self.SEARCH_URL}?{params}"
-        headers = {"Cookie": cookie_header}
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        headers = _browser_headers(cookie_header)
+        async with httpx.AsyncClient(http2=True, timeout=httpx.Timeout(30.0)) as client:
             response = await client.get(url, headers=headers)
         if response.status_code == 429:
             raise LoginRateLimitError(_rate_limit_message(response))
@@ -70,10 +70,12 @@ class LoginService:
         params = urlencode({"hl": self._hl, "xsrf": xsrf_token})
         url = f"{self.SESSION_URL}?{params}"
         headers = {
-            "Cookie": cookie_header,
+            **_browser_headers(cookie_header),
             "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "*/*",
+            "Origin": "https://scholar.google.com",
         }
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        async with httpx.AsyncClient(http2=True, timeout=httpx.Timeout(30.0)) as client:
             response = await client.post(url, content=urlencode({"q": "test"}), headers=headers)
         if response.status_code == 429:
             raise LoginRateLimitError(_rate_limit_message(response))
@@ -86,3 +88,20 @@ def _rate_limit_message(response: httpx.Response) -> str:
     if retry_after:
         return f"Scholar Labs rate limited login; retry after {retry_after} seconds."
     return "Scholar Labs rate limited login. Wait before retrying."
+
+
+def _browser_headers(cookie_header: str) -> dict[str, str]:
+    return {
+        "Cookie": cookie_header,
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://scholar.google.com/scholar_labs/search",
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+            "image/avif,image/webp,image/apng,*/*;q=0.8"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+    }
