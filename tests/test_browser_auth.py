@@ -57,6 +57,8 @@ def test_macos_chrome_extractor_reads_from_temporary_cookie_db_copy(tmp_path):
         jar = CookieJar()
         jar.set_cookie(_cookie("SID", "sid-value", ".google.com"))
         jar.set_cookie(_cookie("SCHOLAR", "scholar-value", "scholar.google.com"))
+        jar.set_cookie(_cookie("ACCOUNT", "account-value", "accounts.google.com"))
+        jar.set_cookie(_cookie("HK", "hk-value", ".google.com.hk"))
         return jar
 
     extractor = MacOSChromeCredentialExtractor(

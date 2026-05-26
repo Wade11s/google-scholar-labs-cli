@@ -4,7 +4,7 @@ import pytest
 
 from scholar_labs.core.auth import AuthConfigStore, ChromeProfileAuthConfig
 from scholar_labs.core.browser_auth import BrowserCookieMaterial, BrowserProfile
-from scholar_labs.core.login import LoginError, LoginService, XsrfDiscovery
+from scholar_labs.core.login import LoginError, LoginRateLimitError, LoginService, XsrfDiscovery
 
 
 @pytest.mark.asyncio
@@ -27,6 +27,18 @@ async def test_xsrf_discovery_reports_missing_token(httpx_mock):
     )
 
     with pytest.raises(LoginError, match="XSRF"):
+        await XsrfDiscovery().discover("SID=sid-value", hl="en")
+
+
+@pytest.mark.asyncio
+async def test_xsrf_discovery_reports_rate_limit_without_browser_recovery(httpx_mock):
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        status_code=429,
+        headers={"Retry-After": "60"},
+    )
+
+    with pytest.raises(LoginRateLimitError, match="retry after 60 seconds"):
         await XsrfDiscovery().discover("SID=sid-value", hl="en")
 
 

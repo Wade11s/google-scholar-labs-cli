@@ -14,6 +14,10 @@ class LoginError(Exception):
     """Raised when CLI Login cannot validate Scholar Labs access."""
 
 
+class LoginRateLimitError(LoginError):
+    """Raised when Scholar Labs rate-limits login validation."""
+
+
 class XsrfDiscovery:
     SEARCH_URL = "https://scholar.google.com/scholar_labs/search"
 
@@ -23,6 +27,8 @@ class XsrfDiscovery:
         headers = {"Cookie": cookie_header}
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
             response = await client.get(url, headers=headers)
+        if response.status_code == 429:
+            raise LoginRateLimitError(_rate_limit_message(response))
         if response.status_code >= 400:
             raise LoginError(f"Scholar Labs page returned HTTP {response.status_code}.")
         match = re.search(r"[?&]xsrf=([^\"'&<>\s]+)", response.text)
@@ -69,5 +75,14 @@ class LoginService:
         }
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
             response = await client.post(url, content=urlencode({"q": "test"}), headers=headers)
+        if response.status_code == 429:
+            raise LoginRateLimitError(_rate_limit_message(response))
         if response.status_code >= 400:
             raise LoginError(f"Scholar Labs validation returned HTTP {response.status_code}.")
+
+
+def _rate_limit_message(response: httpx.Response) -> str:
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        return f"Scholar Labs rate limited login; retry after {retry_after} seconds."
+    return "Scholar Labs rate limited login. Wait before retrying."

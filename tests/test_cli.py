@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from scholar_labs.cli import main as cli_main
 from scholar_labs.core.browser_auth import BrowserCookieMaterial, BrowserProfile
+from scholar_labs.core.login import LoginRateLimitError
 
 
 runner = CliRunner()
@@ -244,6 +245,26 @@ def test_login_does_not_recover_when_noninteractive(tmp_path, monkeypatch, httpx
     result = runner.invoke(cli_main.app, ["login"])
 
     assert result.exit_code == 1
+    assert opened == []
+
+
+def test_login_rate_limit_does_not_open_browser_recovery(tmp_path, monkeypatch):
+    opened = []
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(cli_main, "_is_interactive", lambda json_output: True)
+    monkeypatch.setattr(cli_main.webbrowser, "open", lambda url: opened.append(url))
+    monkeypatch.setattr(
+        cli_main,
+        "_run_browser_login",
+        lambda browser, profile, hl: (_ for _ in ()).throw(
+            LoginRateLimitError("Scholar Labs rate limited login; retry after 60 seconds.")
+        ),
+    )
+
+    result = runner.invoke(cli_main.app, ["login"])
+
+    assert result.exit_code == 1
+    assert "rate limited" in result.output
     assert opened == []
 
 

@@ -27,7 +27,7 @@ from scholar_labs.core.browser_auth import (
     BrowserAuthError,
     create_browser_credential_extractor,
 )
-from scholar_labs.core.login import LoginError, LoginService
+from scholar_labs.core.login import LoginError, LoginRateLimitError, LoginService
 from scholar_labs.services.search import SearchResponse, SearchService
 
 app = typer.Typer(
@@ -103,6 +103,9 @@ def login(
     hl = os.environ.get("SCHOLAR_HL", "en")
     try:
         config = _run_browser_login(browser=browser, profile=profile, hl=hl)
+    except LoginRateLimitError as e:
+        console.print(f"[red]Login failed:[/red] {e}")
+        raise typer.Exit(code=1)
     except (BrowserAuthError, LoginError) as e:
         if _is_interactive(False):
             url = f"https://scholar.google.com/scholar_labs/search?hl={hl}"

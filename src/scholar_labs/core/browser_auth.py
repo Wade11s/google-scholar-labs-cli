@@ -128,11 +128,21 @@ def _load_chrome_cookies(cookie_file: Path, domain_name: str):
 def _build_cookie_header(cookie_jar) -> str:
     parts = []
     for cookie in cookie_jar:
-        domain = getattr(cookie, "domain", "")
-        if "google.com" not in domain:
+        if not _cookie_matches_host(cookie, "scholar.google.com"):
             continue
         parts.append(f"{cookie.name}={cookie.value}")
     return "; ".join(parts)
+
+
+def _cookie_matches_host(cookie, host: str) -> bool:
+    domain = getattr(cookie, "domain", "")
+    if not domain:
+        return False
+
+    normalized_domain = domain.lstrip(".")
+    if domain.startswith("."):
+        return host == normalized_domain or host.endswith(f".{normalized_domain}")
+    return host == normalized_domain
 
 
 def _detect_macos_chrome_profile(browser: str, chrome_root: Path | None = None) -> BrowserProfile:
