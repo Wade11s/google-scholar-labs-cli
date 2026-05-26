@@ -1,0 +1,93 @@
+import json
+
+import pytest
+
+from scholar_labs.core.auth import AuthConfigStore, ChromeProfileAuthConfig
+from scholar_labs.core.browser_auth import BrowserCookieMaterial, BrowserProfile
+from scholar_labs.core.login import LoginError, LoginService, XsrfDiscovery
+
+
+@pytest.mark.asyncio
+async def test_xsrf_discovery_extracts_token_from_scholar_labs_page(httpx_mock):
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        text='<script>fetch("/scholar_labs/search/session_data?hl=en&xsrf=test-xsrf")</script>',
+    )
+
+    token = await XsrfDiscovery().discover("SID=sid-value", hl="en")
+
+    assert token == "test-xsrf"
+
+
+@pytest.mark.asyncio
+async def test_xsrf_discovery_reports_missing_token(httpx_mock):
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        text="<html>No token</html>",
+    )
+
+    with pytest.raises(LoginError, match="XSRF"):
+        await XsrfDiscovery().discover("SID=sid-value", hl="en")
+
+
+@pytest.mark.asyncio
+async def test_login_service_validates_and_writes_credential_source_record(tmp_path, httpx_mock):
+    store = AuthConfigStore(tmp_path / "auth.json")
+    extractor = FakeExtractor()
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        text='"/scholar_labs/search/session_data?hl=en&xsrf=test-xsrf"',
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://scholar.google.com/scholar_labs/search/session_data?hl=en&xsrf=test-xsrf",
+        content=b"ok",
+    )
+
+    service = LoginService(store=store, extractor=extractor, hl="en")
+
+    config = await service.login()
+
+    assert config == ChromeProfileAuthConfig(
+        browser="chrome",
+        profile="Default",
+        profile_path="/tmp/Chrome/Default",
+        validated_at=config.validated_at,
+    )
+    written = json.loads((tmp_path / "auth.json").read_text())
+    assert written["method"] == "chrome-profile"
+    assert "cookie" not in written
+    assert "xsrf_token" not in written
+
+
+@pytest.mark.asyncio
+async def test_login_service_reports_validation_failure(tmp_path, httpx_mock):
+    store = AuthConfigStore(tmp_path / "auth.json")
+    extractor = FakeExtractor()
+    httpx_mock.add_response(
+        url="https://scholar.google.com/scholar_labs/search?hl=en",
+        text='"/scholar_labs/search/session_data?hl=en&xsrf=test-xsrf"',
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url="https://scholar.google.com/scholar_labs/search/session_data?hl=en&xsrf=test-xsrf",
+        status_code=403,
+    )
+
+    service = LoginService(store=store, extractor=extractor, hl="en")
+
+    with pytest.raises(LoginError, match="validation returned HTTP 403"):
+        await service.login()
+
+    assert not (tmp_path / "auth.json").exists()
+
+
+class FakeExtractor:
+    profile = BrowserProfile(
+        browser="chrome",
+        profile="Default",
+        profile_path="/tmp/Chrome/Default",
+    )
+
+    def extract(self):
+        return BrowserCookieMaterial(cookie_header="SID=sid-value")
