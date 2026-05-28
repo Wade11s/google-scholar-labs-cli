@@ -2,19 +2,49 @@
 
 Search Google Scholar Labs from your terminal.
 
-## Install
+## For Agents
 
 ```bash
-uv pip install -e .
+# Install uv (if not present)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install the CLI
+uv tool install git+https://github.com/Wade11s/google-scholar-labs-cli.git
+
+# Authenticate (interactive — requires existing Chrome login)
+sls login
+
+# Search
+sls search "your research query"
 ```
 
-Install the browser auth extra to use automatic login from macOS Chrome/Chromium:
+## Quick Start
+
+### 1. Install uv
 
 ```bash
-uv pip install -e ".[browser]"
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-## Configure Authentication
+### 2. Install the CLI
+
+```bash
+uv tool install git+https://github.com/Wade11s/google-scholar-labs-cli.git
+```
+
+### 3. Authenticate
+
+```bash
+sls login
+```
+
+### 4. Search
+
+```bash
+sls search "large language model safety"
+```
+
+## Authentication
 
 ### Primary path: browser login
 

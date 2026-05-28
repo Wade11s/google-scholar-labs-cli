@@ -12,26 +12,18 @@ dependencies = [
     "rich>=13",
     "httpx[http2]>=0.28",
     "beautifulsoup4>=4.12",
+    "browser-cookie3>=0.20.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Wade11s/google-scholar-labs-cli"
+Repository = "https://github.com/Wade11s/google-scholar-labs-cli"
 
 [project.scripts]
 sls = "scholar_labs.cli.main:app"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8",
-    "pytest-asyncio>=0.25",
-]
-browser = [
-    "browser-cookie3>=0.20.1",
-]
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/scholar_labs"]
-
-[[tool.uv.index]]
-url = "https://pypi.org/simple"
-default = true
 
 [build-system]
 requires = ["hatchling"]
@@ -39,6 +31,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "pytest-asyncio>=1.3.0",
+    "pytest>=8",
+    "pytest-asyncio>=0.25",
     "pytest-httpx>=0.36.2",
 ]
