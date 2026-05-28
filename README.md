@@ -2,7 +2,9 @@
 
 Search Google Scholar Labs from your terminal.
 
-## For Agents
+## Agent Install Guide
+
+> For AI agents: follow these steps to install and use this CLI via Bash.
 
 ```bash
 # Install uv (if not present)
@@ -20,7 +22,9 @@ sls search "your research query"
 
 ## Quick Start
 
-### 1. Install uv
+### 1. Install uv (optional, recommended)
+
+If you already have `uv` installed, skip this step.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
